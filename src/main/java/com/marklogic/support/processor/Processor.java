@@ -29,6 +29,7 @@ public class Processor {
     private static Map<String, String> documentMap;
     private static String lastProcessedURI = "/";
     private static String batchQuery = null;
+    private static String documentTransformModule = null;
 
     private static boolean complete = false;
     private static ExecutorService es = Executors.newFixedThreadPool(Config.THREAD_POOL_SIZE);
@@ -78,6 +79,7 @@ public class Processor {
         try {
             Configurations configs = new Configurations();
             Configuration config = configs.properties(new File("config.properties"));
+            documentTransformModule = new String(Files.readAllBytes(Paths.get(Config.DOCUMENT_TRANSFORM_MODULE)));
             HOST_XCC_URI = config.getString("source.uri");
             LOG.debug(String.format("Configured Input XCC URI: %s", HOST_XCC_URI));
             LOG.info(String.format("running URIs query: %s", lastProcessedURI));
@@ -122,7 +124,7 @@ public class Processor {
                 complete = true;
             }
 
-            LOG.debug(String.format("Starting with a batch of %d documents", rs.size()));
+            LOG.debug(String.format("Starting with a batch of %d documents : Map Size is now %d ", rs.size(), documentMap.size()));
 
             Iterator<ResultItem> resultItemIterator = rs.iterator();
             String currentUri = "/";
@@ -133,7 +135,7 @@ public class Processor {
             }
 
             lastProcessedURI = currentUri;
-            LOG.debug(String.format("Last URI in batch of %s URI(s): %s%s%s", rs.size(), Config.ANSI_BLUE, lastProcessedURI, Config.ANSI_RESET));
+            LOG.info(String.format("Last URI in batch of %s URI(s): %s%s%s : Map Size is now %d", rs.size(), Config.ANSI_BLUE, lastProcessedURI, Config.ANSI_RESET, documentMap.size()));
             if (rs.size() == 0) {
                 complete = true;
             }
@@ -152,6 +154,15 @@ public class Processor {
 
         public void run() {
             // TODO - process document here
+            Session dlsSession = cs.newSession();
+            Request dlsRequest = dlsSession.newAdhocQuery(documentTransformModule);
+            dlsRequest.setNewStringVariable("URI", uri);
+            try {
+                dlsSession.submitRequest(dlsRequest);
+            } catch (RequestException e) {
+                LOG.error("XCC Request Exception Caught: ",e);
+            }
+            documentMap.put(uri, "");
         }
     }
 }
